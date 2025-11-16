@@ -49,12 +49,17 @@ class Camera:
         # Aplicar gravidade
         if not self.on_ground:
             self.y_velocity += settings.GRAVITY * delta_time
+        
+        # Atualizar posição vertical
+        self.pos.y += self.y_velocity * delta_time
 
         # verificar colisão com o chão
-        if self.pos.y < ground_height:
+        if self.pos.y <= ground_height:
             self.pos.y = ground_height
             self.y_velocity = 0.0
             self.on_ground = True
+        else:
+            self.on_ground = False
 
     # Adicionar método de pulo    
     def jump(self):

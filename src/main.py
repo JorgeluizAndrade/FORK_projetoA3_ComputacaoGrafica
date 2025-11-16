@@ -127,11 +127,18 @@ class Engine:
 
         velocity = settings.CAMERA_SPEED * multiplier * self.delta_time
 
+        # Cria um vetor que impede que "olhar para cima" faça a camera voar
+        front_xz = glm.normalize(glm.vec3(self.camera.front.x, 0.0, self.camera.front.z))
+
+        # Vetor para A/D
+        right_vector = glm.normalize(glm.cross(self.camera.front, self.camera.up))
+
         # Andar (W/S) e (A/D)
         if glfw.get_key(self.window, glfw.KEY_W) == glfw.PRESS: #
-            self.camera.pos += self.camera.front * velocity #
+            self.camera.pos += front_xz * velocity #
         if glfw.get_key(self.window, glfw.KEY_S) == glfw.PRESS:
-            self.camera.pos -= self.camera.front * velocity
+            self.camera.pos -= front_xz * velocity
+
         right_vector = glm.normalize(glm.cross(self.camera.front, self.camera.up)) #
         if glfw.get_key(self.window, glfw.KEY_A) == glfw.PRESS: #
             self.camera.pos -= right_vector * velocity #
