@@ -39,3 +39,26 @@ class Camera:
         front_vec.y = glm.sin(glm.radians(self.pitch)) #
         front_vec.z = glm.sin(glm.radians(self.yaw)) * glm.cos(glm.radians(self.pitch)) #
         self.front = glm.normalize(front_vec)
+
+    def update_physics(self, delta_time, terrain):
+        """Aplica gravidade e colisão com o chão."""
+
+        # Obter altura do chão na posição atual da câmera
+        ground_height = terrain.get_height(self.pos.x, self.pos.z)
+
+        # Aplicar gravidade
+        if not self.on_ground:
+            self.y_velocity += settings.GRAVITY * delta_time
+
+        # verificar colisão com o chão
+        if self.pos.y < ground_height:
+            self.pos.y = ground_height
+            self.y_velocity = 0.0
+            self.on_ground = True
+
+    # Adicionar método de pulo    
+    def jump(self):
+        """Inicia um pulo se estiver no chão."""
+        if self.on_ground:
+            self.y_velocity = settings.JUMP_FORCE
+            self.on_ground = False
