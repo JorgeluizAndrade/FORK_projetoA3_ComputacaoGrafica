@@ -1,3 +1,5 @@
+import glm
+
 # Constantes globais
 
 # dimensões da tela
@@ -18,3 +20,8 @@ CAMERA_SENSITIVITY = 0.1
 
 # Configurações do Terreno
 TERRAIN_SIZE = 300.0 # O PDF pede >= 300m (Regra 1.a)
+
+# Paleta de cores para o céu
+COLOR_DAY = glm.vec3(0.5, 0.7, 1.0) # Azul claro
+COLOR_SUNSET = glm.vec3(1.0, 0.5, 0.2) # Laranja
+COLOR_NIGHT = glm.vec3(0.0, 0.0, 0.05) # Azul muito escuro

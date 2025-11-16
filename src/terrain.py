@@ -98,7 +98,7 @@ class Terrain:
         glBindVertexArray(0)
         print(f"Terreno gerado com {len(vertices)//3} vértices.")
 
-    def draw(self, camera, projection_matrix):
+    def draw(self, camera, projection_matrix, sun_direction):
         self.shader.use()
         
         # Configurar matrizes

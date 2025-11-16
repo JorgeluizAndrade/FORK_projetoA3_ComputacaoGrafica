@@ -46,6 +46,11 @@ class Engine:
         glfw.set_input_mode(self.window, glfw.CURSOR, glfw.CURSOR_DISABLED) 
         glfw.set_cursor_pos_callback(self.window, self.mouse_callback) 
 
+        # Variáveis de Cena para o ciclo do dia
+        self.scene_time = 0.0 # Tempo em segundos desde o início do programa
+        self.sun_direction = glm.vec3(1.0, 0.0, 0.0) # Direção inicial do sol
+        self.ski_color = settings.COLOR_DAY # Cor inicial do céu
+
 
         # Testar o carregamento do shader
         try:
@@ -74,9 +79,12 @@ class Engine:
 
             # Atualizar a física da câmera
             self.camera.update_physics(self.delta_time, self.terrain)
-            
-            # Definir a cor do mundo (Azul)
-            glClearColor(0.1, 0.4, 0.7, 1.0)
+
+            # Atualizar o ciclo do dia
+            self.update_day_night_cycle()
+
+            # definir a cor do céu baseado na hora do dia
+            glClearColor(self.sky_color.r, self.sky_color.g, self.sky_color.b, 1.0)
 
             # limpar a tela antes de desenhar um novo quadro
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
@@ -85,8 +93,8 @@ class Engine:
             # Cria a matriz de projeção (Lente da câmera)
             projection = glm.perspective(glm.radians(45.0), self.width / self.height, 0.1, 1000.0)
             
-            # Desenhar o terreno
-            self.terrain.draw(self.camera, projection)
+            # Desenhar o terreno considerando a direção do sol
+            self.terrain.draw(self.camera, projection, self.sun_direction)
 
             # Mostrar o que foi desenhado
             glfw.swap_buffers(self.window)
@@ -149,6 +157,39 @@ class Engine:
         if glfw.get_key(self.window, glfw.KEY_SPACE) == glfw.PRESS:
             self.camera.jump()
         
+    def update_day_night_cycle(self):
+        """Calcula a posição do sol e a cor do ceú"""
+
+        # Simulação do Sol, o projeto pede 1 min real = 1 hora no jogo (ou seja, 60x mais rápido)
+        # (Vamos usar 20x mais rápido para testar, senão é muito lento)
+        self.scene_time += self.delta_time * 20.0 
+        
+        # game_hour = (self.scene_time / 60.0) % 24.0 # (Fórmula do PDF)
+        game_hour = (self.scene_time / 5.0) % 24.0 # (Mais rápido para teste)
+
+        # Converter hora em ângulo (0-24h -> 0-2PI)
+        angle = (game_hour / 24.0) * 2.0 * glm.pi()
+
+        # Ajustar o ângulo para o sol nascer no Leste (X+) e se pôr no Oeste (X-)
+        # Para começar no Leste (X+), precisamos de um offset de -PI/2 (ou 18h)
+        start_angle = angle - (glm.pi() / 2.0)
+        self.sun_direction = glm.normalize(glm.vec3(glm.cos(start_angle), glm.sin(start_angle), 0.1))
+
+        # Céu Dinâmico
+        sun_height = self.sun_direction.y # Altura do sol (-1 a +1)
+        
+        # Lógica de interpolação
+        if sun_height > 0.1: # Dia
+            # Interpola do Pôr do Sol (0.1) para o Meio-Dia (1.0)
+            factor = (sun_height - 0.1) / 0.9
+            self.sky_color = glm.lerp(settings.COLOR_SUNSET, settings.COLOR_DAY, factor)
+        elif sun_height > -0.1: # Pôr/Nascer do sol
+            # Interpola da Noite (-0.1) para o Pôr do Sol (0.1)
+            factor = (sun_height + 0.1) / 0.2
+            self.sky_color = glm.lerp(settings.COLOR_NIGHT, settings.COLOR_SUNSET, factor)
+        else: # Noite
+            self.sky_color = settings.COLOR_NIGHT
+
 if __name__ == "__main__":
     # Iniciar a aplicação
     engine = Engine(settings.WIN_WIDTH, settings.WIN_HEIGHT)
