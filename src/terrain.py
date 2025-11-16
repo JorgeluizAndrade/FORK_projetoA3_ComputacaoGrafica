@@ -45,7 +45,17 @@ class Terrain:
 
         self.heights = [[0.0 for _ in range(self.depth)] for _ in range(self.width)]
 
-        print("Gerando terreno... aguarde.")
+        # Armazenar posições e normais
+        vertices_pos = []
+        normals = []
+        indices = []
+
+        start_x = -settings.TERRAIN_SIZE / 2.0
+        start_z = -settings.TERRAIN_SIZE / 2.0
+        step_x = settings.TERRAIN_SIZE / float(self.width - 1)
+        step_z = settings.TERRAIN_SIZE / float(self.depth - 1)
+
+        print("Gerando terreno (Posições e Alturas)... aguarde.")
 
         for i in range(self.depth):     # Z (Linhas da imagem)
             for j in range(self.width): # X (Colunas da imagem)
@@ -60,6 +70,28 @@ class Terrain:
                 
                 # Adicionar vértice (x, y, z)
                 vertices.extend([x, y, z])
+
+        print("Calculando Normais...")
+
+        # Cálculo de Normais
+        # Helper para pegar altura de forma segura
+        def get_height_safe(j, i):
+            j_safe = max(0, min(j, self.width - 1))
+            i_safe = max(0, min(i, self.depth - 1))
+            return self.heights[j_safe][i_safe]
+
+        for i in range(self.depth):
+            for j in range(self.width):
+                # Pega altura dos vizinhos
+                height_l = get_height_safe(j - 1, i)
+                height_r = get_height_safe(j + 1, i)
+                height_t = get_height_safe(j, i - 1)
+                height_b = get_height_safe(j, i + 1)
+                
+                # Calcula normal e normaliza
+                normal = glm.vec3(height_l - height_r, 2.0, height_t - height_b)
+                normals.append(glm.normalize(normal))
+
 
         # Gerar Índices (Conectar os pontos em triângulos)
         for i in range(self.depth - 1):
@@ -77,26 +109,40 @@ class Terrain:
 
         self.indices_count = len(indices)
 
-        # Enviar para GPU com Numpy
-        vertex_data = np.array(vertices, dtype=np.float32)
-        index_data = np.array(indices, dtype=np.uint32)
+        # Enviar para GPUcom Posição e Normal
+        
+        # Combinar posições e normais em um único array
+        interleaved_data = []
+        for i in range(len(vertices_pos)):
+            interleaved_data.extend([vertices_pos[i].x, vertices_pos[i].y, vertices_pos[i].z])
+            interleaved_data.extend([normals[i].x, normals[i].y, normals[i].z])
+            
+        vertex_data_np = np.array(interleaved_data, dtype=np.float32)
+        index_data_np = np.array(indices, dtype=np.uint32)
 
         glBindVertexArray(self.vao)
 
         # VBO (Dados dos vértices)
         glBindBuffer(GL_ARRAY_BUFFER, self.vbo)
-        glBufferData(GL_ARRAY_BUFFER, vertex_data.nbytes, vertex_data, GL_STATIC_DRAW)
+        glBufferData(GL_ARRAY_BUFFER, vertex_data_np.nbytes, vertex_data_np, GL_STATIC_DRAW)
 
         # EBO (Índices)
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self.ebo)
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, index_data.nbytes, index_data, GL_STATIC_DRAW)
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, index_data_np.nbytes, index_data_np, GL_STATIC_DRAW)
+
+        # Layout do VBO
+        stride = 6 * 4 # 6 floats (pos + normal) * 4 bytes cada
 
         # Atributo 0: Posição (vec3)
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * 4, ctypes.c_void_p(0))
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, ctypes.c_void_p(0))
         glEnableVertexAttribArray(0)
 
+        # Atributo 1: Normal (vec3)
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, stride, ctypes.c_void_p(3 * 4)) # Offset de 3 floats
+        glEnableVertexAttribArray(1)
+
         glBindVertexArray(0)
-        print(f"Terreno gerado com {len(vertices)//3} vértices.")
+        print(f"Terreno gerado com {len(vertices_pos)} vértices.")
 
     def draw(self, camera, projection_matrix, sun_direction):
         self.shader.use()
@@ -107,12 +153,15 @@ class Terrain:
         self.shader.set_uniform_mat4("view", camera.get_view_matrix())
         self.shader.set_uniform_mat4("projection", projection_matrix)
         
+        # Passar dados de iluminação para o shader
+        self.shader.set_uniform_vec3("u_sun_direction", sun_direction)
+        self.shader.set_uniform_vec3("u_sun_color", settings.COLOR_SUN)
+        self.shader.set_uniform_vec3("u_ambient_color", settings.COLOR_AMBIENT)
+
         # Desenhar
         glBindVertexArray(self.vao)
-        # Wireframe (modo linhas) para ver melhor a geometria sem textura por enquanto
-        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE) 
+
         glDrawElements(GL_TRIANGLES, self.indices_count, GL_UNSIGNED_INT, None)
-        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL) # Voltar ao normal
         glBindVertexArray(0)
 
     def get_height(self, world_x, world_z):

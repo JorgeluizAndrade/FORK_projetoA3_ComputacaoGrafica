@@ -25,3 +25,7 @@ TERRAIN_SIZE = 300.0 # O PDF pede >= 300m (Regra 1.a)
 COLOR_DAY = glm.vec3(0.5, 0.7, 1.0) # Azul claro
 COLOR_SUNSET = glm.vec3(1.0, 0.5, 0.2) # Laranja
 COLOR_NIGHT = glm.vec3(0.0, 0.0, 0.05) # Azul muito escuro
+
+# Iluminação
+COLOR_SUN = glm.vec3(1.0, 1.0, 0.8)     # Cor da luz do sol (amarelo claro)
+COLOR_AMBIENT = glm.vec3(0.1, 0.1, 0.2) # Luz ambiente (não fica preto total à noite)
