@@ -71,6 +71,9 @@ class Engine:
             glfw.poll_events()
 
             self.process_keyboard_input()
+
+            # Atualizar a física da câmera
+            self.camera.update_physics(self.delta_time, self.terrain)
             
             # Definir a cor do mundo (Azul)
             glClearColor(0.1, 0.4, 0.7, 1.0)
@@ -114,7 +117,8 @@ class Engine:
         if glfw.get_key(self.window, glfw.KEY_ESCAPE) == glfw.PRESS:
             glfw.set_window_should_close(self.window, True)
 
-        # 6. Lógica de Movimento
+
+        # Lógica de Movimento
         
         # Correndo
         multiplier = 1.0
@@ -123,18 +127,20 @@ class Engine:
 
         velocity = settings.CAMERA_SPEED * multiplier * self.delta_time
 
-        # Andar (W/S)
+        # Andar (W/S) e (A/D)
         if glfw.get_key(self.window, glfw.KEY_W) == glfw.PRESS: #
             self.camera.pos += self.camera.front * velocity #
         if glfw.get_key(self.window, glfw.KEY_S) == glfw.PRESS:
             self.camera.pos -= self.camera.front * velocity
-
-        # Andar (A/D)
         right_vector = glm.normalize(glm.cross(self.camera.front, self.camera.up)) #
         if glfw.get_key(self.window, glfw.KEY_A) == glfw.PRESS: #
             self.camera.pos -= right_vector * velocity #
         if glfw.get_key(self.window, glfw.KEY_D) == glfw.PRESS:
             self.camera.pos += right_vector * velocity
+
+        # Pular (Barra de Espaço)
+        if glfw.get_key(self.window, glfw.KEY_SPACE) == glfw.PRESS:
+            self.camera.jump()
         
 if __name__ == "__main__":
     # Iniciar a aplicação
