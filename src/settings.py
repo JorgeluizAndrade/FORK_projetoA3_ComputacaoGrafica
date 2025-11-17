@@ -29,3 +29,7 @@ COLOR_NIGHT = glm.vec3(0.0, 0.0, 0.05) # Azul muito escuro
 # Iluminação
 COLOR_SUN = glm.vec3(1.0, 1.0, 0.8)     # Cor da luz do sol (amarelo claro)
 COLOR_AMBIENT = glm.vec3(0.1, 0.1, 0.2) # Luz ambiente (não fica preto total à noite)
+
+# Configuraçõs de Sombra
+SHADOW_MAP_WIDTH = 2048
+SHADOW_MAP_HEIGHT = 2048

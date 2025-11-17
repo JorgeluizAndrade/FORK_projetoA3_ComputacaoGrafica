@@ -5,6 +5,7 @@ from shader import Shader # Importar a classe Shader
 import glm # Biblioteca para manipulação de vetores e matrizes
 from camera import Camera # Importar a classe Camera
 from terrain import Terrain # Importar a classe Terrain
+from shadow_mapper import ShadowMapper # Importar a classe ShadowMapper
 
 class Engine:
     def __init__(self, width, height):
@@ -58,8 +59,12 @@ class Engine:
         # Testar o carregamento do shader
         try:
             self.terrain_shader = Shader("shaders/terrain.vert", "shaders/terrain.frag")
-            # Inicializar o terreno
+            self.shadow_shader = Shader("shaders/shadow_map.vert", "shaders/shadow_map.frag")
+
+            # Inicializar o terreno com o shader
             self.terrain = Terrain(self.terrain_shader)
+            self.shadow_mapper = ShadowMapper()
+
         except Exception as e:
             print(f"Falha ao inicializar o shader: {e}")
             glfw.terminate()
@@ -86,6 +91,37 @@ class Engine:
             # Atualizar o ciclo do dia
             self.update_day_night_cycle()
 
+            # Renderizar o mapa de sombras
+            # Calcular a Matriz de Luz (Câmera do Sol)
+            # Projeção Ortográfica (Sol é luz direcional, raios paralelos)
+            # Abrange uma área de 100x100 ao redor da câmera
+            near_plane = 1.0
+            far_plane = 200.0
+            size = 80.0 
+            light_projection = glm.ortho(-size, size, -size, size, near_plane, far_plane)
+            
+            # Visão: O sol olha para a posição da câmera do jogador (mas de longe)
+            # Posicionamos o "olho" do sol na direção da luz, a 100m de distância
+            light_pos = self.camera.pos + (self.sun_direction * 100.0)
+            light_view = glm.lookAt(light_pos, self.camera.pos, glm.vec3(0, 1, 0))
+            
+            light_space_matrix = light_projection * light_view
+
+            # Renderizar
+            self.shadow_mapper.bind() # Ativa o framebuffer de sombra
+            
+            # Usar o shader simples de sombra
+            self.shadow_shader.use()
+            self.shadow_shader.set_uniform_mat4("lightSpaceMatrix", light_space_matrix)
+            
+            # Desenhar o terreno (apenas geometria) para o mapa de sombra
+            # Precisamos de um método draw simples no terrain ou passar o shader de sombra
+            # TRUQUE: Vamos adicionar um 'override_shader' no draw do Terrain
+            self.terrain.draw(self.camera, projection=None, sun_direction=None, override_shader=self.shadow_shader)
+            
+            self.shadow_mapper.unbind(self.width, self.height) # Volta pra tela normal
+
+            # RENDERIZAR CENA NORMAL (Com Sombras)
             # definir a cor do céu baseado na hora do dia
             glClearColor(self.sky_color.r, self.sky_color.g, self.sky_color.b, 1.0)
 
@@ -96,6 +132,15 @@ class Engine:
             # Cria a matriz de projeção (Lente da câmera)
             projection = glm.perspective(glm.radians(45.0), self.width / self.height, 0.1, 1000.0)
             
+            # Configurar Shader do Terreno para receber sombras
+            self.terrain_shader.use()
+            self.terrain_shader.set_uniform_mat4("u_light_space_matrix", light_space_matrix) # <--- Envia a matriz
+            self.terrain_shader.set_uniform_int("u_shadow_map", 1) # <--- Textura na unidade 1
+            
+            # Ativar a textura de sombra na unidade 1
+            glActiveTexture(GL_TEXTURE1)
+            glBindTexture(GL_TEXTURE_2D, self.shadow_mapper.depth_map_texture)
+
             # Desenhar o terreno considerando a direção do sol
             self.terrain.draw(self.camera, projection, self.sun_direction)
 

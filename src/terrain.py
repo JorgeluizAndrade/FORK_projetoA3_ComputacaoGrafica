@@ -124,23 +124,25 @@ class Terrain:
         
         print(f"Terreno gerado com {len(vertices_pos)} vértices.")
 
-    def draw(self, camera, projection_matrix, sun_direction):
-        self.shader.use()
+    # Atualizado para suportar shader de sombra (Shadow Mapping)
+    def draw(self, camera, projection, sun_direction, override_shader=None):
+        # Se passarmos um shader específico (sombra), usamos ele. Senão, usa o padrão.
+        shader_to_use = override_shader if override_shader else self.shader
+        shader_to_use.use()
         
-        # Configurar matrizes
-        # Model: Matriz identidade (terreno não se move)
-        self.shader.set_uniform_mat4("model", glm.mat4(1.0))
-        self.shader.set_uniform_mat4("view", camera.get_view_matrix())
-        self.shader.set_uniform_mat4("projection", projection_matrix)
+        # Configurar matrizes básicas (Model é sempre necessário)
+        shader_to_use.set_uniform_mat4("model", glm.mat4(1.0))
         
-        # Passar dados de iluminação para o shader
-        self.shader.set_uniform_vec3("u_sun_direction", sun_direction)
-        self.shader.set_uniform_vec3("u_sun_color", settings.COLOR_SUN)
-        self.shader.set_uniform_vec3("u_ambient_color", settings.COLOR_AMBIENT)
-
+        # Se NÃO for o shader de sombra (é o render normal), mandamos os dados completos
+        if override_shader is None:
+            shader_to_use.set_uniform_mat4("view", camera.get_view_matrix())
+            shader_to_use.set_uniform_mat4("projection", projection)
+            shader_to_use.set_uniform_vec3("u_sun_direction", sun_direction)
+            shader_to_use.set_uniform_vec3("u_sun_color", settings.COLOR_SUN)
+            shader_to_use.set_uniform_vec3("u_ambient_color", settings.COLOR_AMBIENT)
+        
         # Desenhar
         glBindVertexArray(self.vao)
-
         glDrawElements(GL_TRIANGLES, self.indices_count, GL_UNSIGNED_INT, None)
         glBindVertexArray(0)
 
