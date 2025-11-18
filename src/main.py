@@ -6,6 +6,7 @@ import glm # Biblioteca para manipulação de vetores e matrizes
 from camera import Camera # Importar a classe Camera
 from terrain import Terrain # Importar a classe Terrain
 from shadow_mapper import ShadowMapper # Importar a classe ShadowMapper
+from model import Model # Importar a classe Model
 
 class Engine:
     def __init__(self, width, height):
@@ -61,8 +62,15 @@ class Engine:
             self.terrain_shader = Shader("shaders/terrain.vert", "shaders/terrain.frag")
             self.shadow_shader = Shader("shaders/shadow_map.vert", "shaders/shadow_map.frag")
 
+            # NOVO SHADER DE PERSONAGEM
+            self.model_shader = Shader("shaders/animated_model.vert", "shaders/animated_model.frag")
+
             # Inicializar o terreno com o shader
             self.terrain = Terrain(self.terrain_shader)
+
+            # NOVO PERSONAGEM
+            self.character = Model("assets/models/character.fbx", self.model_shader)
+
             self.shadow_mapper = ShadowMapper()
 
         except Exception as e:
@@ -119,6 +127,14 @@ class Engine:
             # TRUQUE: Vamos adicionar um 'override_shader' no draw do Terrain
             self.terrain.draw(self.camera, projection=None, sun_direction=None, override_shader=self.shadow_shader)
             
+            # Desenha Personagem na Sombra
+            model_matrix = glm.translate(glm.mat4(1.0), glm.vec3(0, terrain_height_at_center, 0))
+            # Reduzir escala se o boneco for gigante (comum no Mixamo)
+            model_matrix = glm.scale(model_matrix, glm.vec3(0.01, 0.01, 0.01)) 
+            
+            self.shadow_shader.set_uniform_mat4("model", model_matrix)
+            self.character.draw(self.shadow_shader) # Usa o shader de sombra
+
             self.shadow_mapper.unbind(self.width, self.height) # Volta pra tela normal
 
             # RENDERIZAR CENA NORMAL (Com Sombras)
@@ -143,6 +159,30 @@ class Engine:
 
             # Desenhar o terreno considerando a direção do sol
             self.terrain.draw(self.camera, projection, self.sun_direction)
+
+            # Desenha o Personagem 
+            self.model_shader.use()
+            self.model_shader.set_uniform_mat4("view", self.camera.get_view_matrix())
+            self.model_shader.set_uniform_mat4("projection", projection)
+            self.model_shader.set_uniform_vec3("u_sun_direction", self.sun_direction)
+            self.model_shader.set_uniform_vec3("u_sun_color", settings.COLOR_SUN)
+            self.model_shader.set_uniform_vec3("u_ambient_color", settings.COLOR_AMBIENT)
+            self.model_shader.set_uniform_mat4("u_light_space_matrix", light_space_matrix)
+            self.model_shader.set_uniform_int("u_shadow_map", 1) # Mesma textura de sombra
+
+            # Matriz de Modelo (Mesma da sombra)
+            # Vamos pegar a altura do terreno no centro (0,0) para ele não afundar
+            h = self.terrain.get_height(0, 0)
+            model_matrix = glm.translate(glm.mat4(1.0), glm.vec3(0, h, 0))
+            model_matrix = glm.scale(model_matrix, glm.vec3(0.01, 0.01, 0.01)) # Ajuste a escala conforme necessário (0.01 é um chute seguro para FBX)
+            
+            self.model_shader.set_uniform_mat4("model", model_matrix)
+            
+            # Ativar textura de sombra (já deve estar ativa do terreno, mas garante)
+            glActiveTexture(GL_TEXTURE1)
+            glBindTexture(GL_TEXTURE_2D, self.shadow_mapper.depth_map_texture)
+
+            self.character.draw(self.model_shader)
 
             # Mostrar o que foi desenhado
             glfw.swap_buffers(self.window)
