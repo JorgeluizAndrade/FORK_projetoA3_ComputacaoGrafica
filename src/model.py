@@ -78,18 +78,23 @@ class Model:
             self.process_node(child, scene)
 
     def process_mesh(self, mesh, scene):
-        # Conversão de dados para Numpy
+        # 1. Vértices: Converter e Garantir formato 2D (N, 3)
         positions = np.array(mesh.vertices, dtype=np.float32)
+        if positions.ndim == 1:
+            positions = positions.reshape(-1, 3) # Força agrupar de 3 em 3
         
+        # 2. Normais
         if mesh.normals:
             normals = np.array(mesh.normals, dtype=np.float32)
+            if normals.ndim == 1:
+                normals = normals.reshape(-1, 3)
         else:
             normals = np.zeros((len(positions), 3), dtype=np.float32)
             
-        # Verifica nome correto para coordenadas de textura
+        # 3. Texturas
         tex_coords = np.zeros((len(positions), 2), dtype=np.float32)
         
-        # Tenta nomes diferentes que a biblioteca pode usar
+        # Tenta pegar coordenadas de textura (suporta nomes variados)
         coords = None
         if hasattr(mesh, 'texturecoords') and mesh.texturecoords:
             coords = mesh.texturecoords[0]
@@ -97,24 +102,37 @@ class Model:
             coords = mesh.texture_coords[0]
             
         if coords is not None and len(coords) > 0:
-             # Pega apenas U,V (ignora W se existir)
-             # Se vier como lista de listas [[u,v,w],...], converte
              arr = np.array(coords, dtype=np.float32)
-             if arr.shape[1] >= 2:
+             # Se vier plano (1D), agrupa dependendo do número de componentes (geralmente 2 ou 3)
+             if arr.ndim == 1:
+                 # Assimp pode mandar UV (2) ou UVW (3). Vamos tentar adivinhar pelo tamanho
+                 if arr.size == len(positions) * 2:
+                     arr = arr.reshape(-1, 2)
+                 elif arr.size == len(positions) * 3:
+                     arr = arr.reshape(-1, 3)
+             
+             # Pega apenas U e V
+             if arr.ndim == 2 and arr.shape[1] >= 2:
                  tex_coords = arr[:, :2]
 
-        # Intercalar dados
+        # 4. Intercalar dados (Agora é seguro)
         data = []
         for i in range(len(positions)):
-            data.extend(positions[i])
-            data.extend(normals[i])
-            data.extend(tex_coords[i])
+            data.extend(positions[i])   # Agora positions[i] é uma lista [x,y,z]
+            data.extend(normals[i])     # normals[i] é [nx,ny,nz]
+            data.extend(tex_coords[i])  # tex_coords[i] é [u,v]
             
         vertex_data = np.array(data, dtype=np.float32)
         
+        # 5. Índices
         indices = []
         for face in mesh.faces:
-            indices.extend(face)
+            # Se a face vier como array numpy, converte para lista
+            if hasattr(face, 'tolist'):
+                indices.extend(face.tolist())
+            else:
+                indices.extend(face)
+                
         index_data = np.array(indices, dtype=np.uint32)
 
         return Mesh(vertex_data, index_data)
