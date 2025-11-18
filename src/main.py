@@ -51,6 +51,8 @@ class Engine:
         glfw.set_input_mode(self.window, glfw.CURSOR, glfw.CURSOR_DISABLED) 
         glfw.set_cursor_pos_callback(self.window, self.mouse_callback) 
 
+        self.terrain_height_at_center = 0.0
+
         # Variáveis de Cena para o ciclo do dia
         self.scene_time = 0.0 # Tempo em segundos desde o início do programa
         self.sun_direction = glm.vec3(1.0, 0.0, 0.0) # Direção inicial do sol
@@ -101,7 +103,7 @@ class Engine:
 
             # Renderizar a sombras
             # Pegar a altura do terreno no centro para posicionar o personagem
-            terrain_height_at_center = self.terrain.get_height(0, 0)
+            self.terrain_height_at_center = self.terrain.get_height(0, 0)
 
             # Renderizar o mapa de sombras
             # Calcular a Matriz de Luz (Câmera do Sol)
@@ -132,7 +134,7 @@ class Engine:
             self.terrain.draw(self.camera, projection=None, sun_direction=None, override_shader=self.shadow_shader)
             
             # Desenha Personagem na Sombra
-            model_matrix = glm.translate(glm.mat4(1.0), glm.vec3(0, terrain_height_at_center, 0))
+            model_matrix = glm.translate(glm.mat4(1.0), glm.vec3(0, self.terrain_height_at_center, 0))
             # Reduzir escala se o boneco for gigante (comum no Mixamo)
             model_matrix = glm.scale(model_matrix, glm.vec3(0.01, 0.01, 0.01)) 
             
@@ -180,7 +182,7 @@ class Engine:
 
             escala = 0.1
 
-            model_matrix = glm.translate(glm.mat4(1.0), glm.vec3(0, terrain_height_at_center, 0))
+            model_matrix = glm.translate(glm.mat4(1.0), glm.vec3(0, self.terrain_height_at_center, 0))
             model_matrix = glm.scale(model_matrix, glm.vec3(escala, escala, escala)) # Ajuste a escala conforme necessário (0.01 é um chute seguro para FBX)
             
             self.model_shader.set_uniform_mat4("model", model_matrix)

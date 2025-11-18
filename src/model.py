@@ -15,34 +15,23 @@ class Mesh:
 
     def setup_mesh(self):
         glBindVertexArray(self.vao)
-        
-        # VBO
         glBindBuffer(GL_ARRAY_BUFFER, self.vbo)
         glBufferData(GL_ARRAY_BUFFER, self.vertices.nbytes, self.vertices, GL_STATIC_DRAW)
-
-        # EBO
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self.ebo)
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, self.indices.nbytes, self.indices, GL_STATIC_DRAW)
 
-        # Layout (Stride = 64 bytes: 3 pos + 3 norm + 2 uv + 4 bone_id + 4 weight)
         stride = 64
-        
-        # 0: Posição
+        # 0: Pos, 1: Norm, 2: UV, 3: BoneIDs, 4: Weights
         glEnableVertexAttribArray(0)
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, ctypes.c_void_p(0))
-        # 1: Normal
         glEnableVertexAttribArray(1)
         glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, stride, ctypes.c_void_p(12))
-        # 2: UV
         glEnableVertexAttribArray(2)
         glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, ctypes.c_void_p(24))
-        # 3: Bone IDs (Inteiros!)
         glEnableVertexAttribArray(3)
         glVertexAttribIPointer(3, 4, GL_INT, stride, ctypes.c_void_p(32))
-        # 4: Weights
         glEnableVertexAttribArray(4)
         glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, stride, ctypes.c_void_p(48))
-
         glBindVertexArray(0)
 
     def draw(self, shader):
@@ -62,59 +51,61 @@ class Model:
     def load_model(self, path):
         print(f"Carregando modelo (impasse): {path}...")
         try:
-            # Impasse carrega direto (sem flags complexas, ele usa padrão bom)
             scene = impasse.load(path)
             
-            # Tenta achar a raiz (rootnode ou mRootNode)
-            root = getattr(scene, 'rootnode', getattr(scene, 'mRootNode', getattr(scene, 'root_node', None)))
+            # Tenta processar via nó raiz, se falhar, vai direto nas malhas
+            root = getattr(scene, 'root_node', getattr(scene, 'rootnode', None))
             
             if root:
+                print("Processando via Nó Raiz...")
                 self.process_node(root, scene)
-                print(f"Modelo carregado! Malhas: {len(self.meshes)} | Ossos: {self.bone_counter}")
+            elif hasattr(scene, 'meshes') and len(scene.meshes) > 0:
+                print("Raiz não encontrada. Processando malhas diretamente...")
+                for mesh in scene.meshes:
+                    self.meshes.append(self.process_mesh(mesh, scene))
             else:
-                print("ERRO CRÍTICO: Nó raiz não encontrado na cena.")
-                
-            scene.release()
+                print("ERRO CRÍTICO: Nenhuma malha encontrada no arquivo.")
+                return
+
+            print(f"Modelo carregado! Malhas: {len(self.meshes)} | Ossos: {self.bone_counter}")
+            # Nota: Não chamamos scene.release() no impasse
             
         except Exception as e:
-            print(f"ERRO CRÍTICO ao carregar modelo: {e}")
-            # Não damos raise para não fechar a janela, mas o boneco não aparecerá
+            print(f"ERRO CRÍTICO no Model: {e}")
+            # Não damos raise para não fechar a janela imediatamente
 
     def process_node(self, node, scene):
-        # Tenta achar a lista de malhas (meshes ou mesh_indices)
-        node_meshes = getattr(node, 'meshes', getattr(node, 'mesh_indices', []))
-        
-        for i in node_meshes:
-            mesh = scene.meshes[i]
-            self.meshes.append(self.process_mesh(mesh, scene))
-        
+        # Se tiver malhas no nó, processa
+        if hasattr(node, 'meshes'):
+            for i in node.meshes:
+                self.meshes.append(self.process_mesh(scene.meshes[i], scene))
+        # Repete para filhos
         for child in node.children:
             self.process_node(child, scene)
 
     def process_mesh(self, mesh, scene):
         num_v = len(mesh.vertices)
         
-        # 1. Vértices
-        positions = np.array(mesh.vertices, dtype=np.float32)
+        # Vértices
+        pos = np.array(mesh.vertices, dtype=np.float32)
         
-        # 2. Normais
+        # Normais
+        norm = np.zeros((num_v, 3), dtype=np.float32)
         if hasattr(mesh, 'normals') and len(mesh.normals) > 0:
-            normals = np.array(mesh.normals, dtype=np.float32)
-        else:
-            normals = np.zeros((num_v, 3), dtype=np.float32)
+            norm = np.array(mesh.normals, dtype=np.float32)
 
-        # 3. Texturas (Tenta 'texturecoords' do impasse)
-        tex_coords = np.zeros((num_v, 2), dtype=np.float32)
-        uv_channels = getattr(mesh, 'texturecoords', getattr(mesh, 'texcoords', None))
-        
-        if uv_channels and len(uv_channels) > 0 and uv_channels[0] is not None:
-             uv = np.array(uv_channels[0], dtype=np.float32)
-             # Se vier com 3 componentes (u,v,w), pega só 2
-             if uv.shape[1] > 2: tex_coords = uv[:, :2]
-             else: tex_coords = uv
+        # UVs
+        uv = np.zeros((num_v, 2), dtype=np.float32)
+        # impasse: 'texturecoords' é lista de canais
+        if hasattr(mesh, 'texturecoords') and mesh.texturecoords:
+            channel0 = mesh.texturecoords[0]
+            if channel0 is not None and len(channel0) > 0:
+                raw_uv = np.array(channel0, dtype=np.float32)
+                if raw_uv.shape[1] > 2: uv = raw_uv[:, :2]
+                else: uv = raw_uv
 
-        # 4. Ossos (Recuperado!)
-        bone_ids = np.zeros((num_v, 4), dtype=np.int32)
+        # Ossos
+        b_ids = np.zeros((num_v, 4), dtype=np.int32)
         weights = np.zeros((num_v, 4), dtype=np.float32)
 
         if hasattr(mesh, 'bones'):
@@ -122,35 +113,34 @@ class Model:
                 if bone.name not in self.bone_map:
                     self.bone_map[bone.name] = self.bone_counter
                     self.bone_counter += 1
-                    # Transpor matriz para OpenGL (Column-Major)
+                    # Transpor para OpenGL
                     offset = np.array(bone.offsetmatrix, dtype=np.float32).transpose()
                     self.bone_info.append(offset)
                 
-                b_id = self.bone_map[bone.name]
+                idx = self.bone_map[bone.name]
                 for w in bone.weights:
-                    if w.weight == 0.0: continue
-                    for i in range(4):
-                        if weights[w.vertexid][i] == 0.0:
-                            weights[w.vertexid][i] = w.weight
-                            bone_ids[w.vertexid][i] = b_id
+                    if w.weight == 0: continue
+                    for k in range(4):
+                        if weights[w.vertexid][k] == 0.0:
+                            weights[w.vertexid][k] = w.weight
+                            b_ids[w.vertexid][k] = idx
                             break
 
-        # 5. Índices (A CORREÇÃO PRINCIPAL)
-        indices = []
+        # Índices (Faces) - impasse usa 'faces'
+        indices_list = []
         if hasattr(mesh, 'faces'):
-             # Impasse usa 'faces', que é uma lista de listas. Precisamos aplanar.
-             for face in mesh.faces:
-                 indices.extend(face)
+            for f in mesh.faces:
+                indices_list.extend(f)
         elif hasattr(mesh, 'indices'):
-             indices = mesh.indices
+            indices_list = mesh.indices
+            
+        idx_data = np.array(indices_list, dtype=np.uint32)
         
-        index_data = np.array(indices, dtype=np.uint32)
+        # Intercalar
+        interleaved = np.column_stack((pos, norm, uv, b_ids.astype(np.float32), weights))
+        v_data = interleaved.flatten().astype(np.float32)
 
-        # Intercalar dados para GPU
-        interleaved = np.column_stack((positions, normals, tex_coords, bone_ids.astype(np.float32), weights))
-        vertex_data = interleaved.flatten().astype(np.float32)
-
-        return Mesh(vertex_data, index_data)
+        return Mesh(v_data, idx_data)
 
     def draw(self, shader):
         for mesh in self.meshes:
