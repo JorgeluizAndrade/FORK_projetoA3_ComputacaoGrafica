@@ -7,6 +7,11 @@ from camera import Camera # Importar a classe Camera
 from terrain import Terrain # Importar a classe Terrain
 from shadow_mapper import ShadowMapper # Importar a classe ShadowMapper
 from model import Model # Importar a classe Model
+from text_renderer import TextRenderer
+
+import numpy as np
+
+
 
 class Engine:
     def __init__(self, width, height):
@@ -22,6 +27,7 @@ class Engine:
         glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 1) #OpenGL 4.1
         glfw.window_hint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)
         glfw.window_hint(glfw.OPENGL_FORWARD_COMPAT, GL_TRUE) # macOS
+        
         
         # Criar a Janela
         self.window = glfw.create_window(self.width, self.height, "Projeto A3 - OpenGL", None, None)
@@ -52,11 +58,20 @@ class Engine:
         glfw.set_cursor_pos_callback(self.window, self.mouse_callback) 
 
         self.terrain_height_at_center = 0.0
+        
 
         # Variáveis de Cena para o ciclo do dia
         self.scene_time = 0.0 # Tempo em segundos desde o início do programa
         self.sun_direction = glm.vec3(1.0, 0.0, 0.0) # Direção inicial do sol
         self.ski_color = settings.COLOR_DAY # Cor inicial do céu
+
+        # Relogio 
+        self.text_shader = Shader("shaders/text.vert", "shaders/text.frag")
+        self.text_renderer = TextRenderer("assets/fonts/OpenSansHebrew-Regular.ttf", 32)
+
+        # Projeção ortográfica para HUD do relogio
+        self.hud_projection = glm.ortho(0, self.width, 0, self.height)
+
 
 
         # Testar o carregamento do shader
@@ -196,6 +211,38 @@ class Engine:
 
             self.character.draw(self.model_shader)
 
+
+            game_hour = (self.scene_time / 60.0) % 24.0
+            hour = int(game_hour)
+            minute = int((game_hour - hour) * 60)
+            time_str = f"{hour:02d}:{minute:02d}"
+
+            # HUD sempre por cima
+            glDisable(GL_DEPTH_TEST)
+            glEnable(GL_BLEND)
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+
+            self.text_shader.use()
+            self.text_shader.set_uniform_mat4("projection", self.hud_projection)
+            self.text_shader.set_uniform_int("text", 0)  # garante sampler
+
+            self.text_renderer.render_text(
+                self.text_shader,
+                time_str,           # <--- aqui está o 10:17 / 18:00
+                20,                 # posição X
+                self.height - 40,   # posição Y
+                1.0,                # escala
+                (1.0, 1.0, 1.0)     # cor branca
+            )
+
+            glDisable(GL_BLEND)
+            glEnable(GL_DEPTH_TEST)
+
+
+                
+            glDisable(GL_BLEND)                    
+            glEnable(GL_DEPTH_TEST)
+            
             # Mostrar o que foi desenhado
             glfw.swap_buffers(self.window)
             
@@ -262,10 +309,11 @@ class Engine:
 
         # Simulação do Sol, o projeto pede 1 min real = 1 hora no jogo (ou seja, 60x mais rápido)
         # (Vamos usar 20x mais rápido para testar, senão é muito lento)
-        self.scene_time += self.delta_time * 20.0 
+        # deixei mais lenta -- jorge
+        self.scene_time += self.delta_time * 1 
         
         # game_hour = (self.scene_time / 60.0) % 24.0 # (Fórmula do PDF)
-        game_hour = (self.scene_time / 5.0) % 24.0 # (Mais rápido para teste)
+        game_hour = (self.scene_time / 60.0) % 24.0 # (Mais rápido para teste)
 
         # Converter hora em ângulo (0-24h -> 0-2PI)
         angle = (game_hour / 24.0) * 2.0 * glm.pi()
