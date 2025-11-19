@@ -185,6 +185,9 @@ class Engine:
             model_matrix = glm.translate(glm.mat4(1.0), glm.vec3(0, self.terrain_height_at_center, 0))
             model_matrix = glm.scale(model_matrix, glm.vec3(escala, escala, escala)) # Ajuste a escala conforme necessário
             
+            # Atualizar a animação 
+            self.character.update_animation(self.delta_time) # Avança o tempo da animação
+
             self.model_shader.set_uniform_mat4("model", model_matrix)
             
             # Ativar textura de sombra (já deve estar ativa do terreno, mas garante)

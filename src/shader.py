@@ -73,6 +73,30 @@ class Shader:
         # O 'transpose' (GL_FALSE) indica que a matriz está no formato correto (column-major)
         glUniformMatrix4fv(location, 1, GL_FALSE, glm.value_ptr(matrix))
 
+    def set_uniform_mat4_array(self, name, matrices):
+        # Verifica se a lista não está vazia
+        if not matrices or len(matrices) == 0:
+            return
+
+        # Localiza a variável no shader
+        location = glGetUniformLocation(self.program_id, name)
+        
+        if location != -1:
+            # Prepara os dados para o OpenGL
+            # 1. Converte cada matriz GLM para uma lista plana de floats
+            # 2. Junta tudo num único array numpy gigante
+            import numpy as np # Garanta que numpy está importado no topo
+            
+            # Empilha todas as matrizes e achata para 1D
+            flat_data = np.array([np.array(m) for m in matrices], dtype=np.float32).flatten()
+            
+            # Envia para a GPU
+            # location: onde escrever
+            # len(matrices): quantas matrizes são (count)
+            # GL_FALSE: não transpor (GLM já está correto)
+            # flat_data: os dados em si
+            glUniformMatrix4fv(location, len(matrices), GL_FALSE, flat_data)
+
     def set_uniform_vec3(self, name, vector):
         """Define um uniform do tipo vec3 (vetor 3D)."""
         location = self.get_uniform_location(name)
