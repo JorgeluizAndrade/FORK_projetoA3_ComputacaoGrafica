@@ -71,7 +71,7 @@ class Engine:
             self.terrain = Terrain(self.terrain_shader)
 
             # NOVO PERSONAGEM
-            self.character = Model("assets/models/character.fbx", self.model_shader)
+            self.character = Model("assets/models/character.glb", self.model_shader)
 
             self.shadow_mapper = ShadowMapper()
 
@@ -180,10 +180,10 @@ class Engine:
             # Vamos pegar a altura do terreno no centro (0,0) para ele não afundar
             h = self.terrain.get_height(0, 0)
 
-            escala = 0.1
+            escala = 4.0
 
             model_matrix = glm.translate(glm.mat4(1.0), glm.vec3(0, self.terrain_height_at_center, 0))
-            model_matrix = glm.scale(model_matrix, glm.vec3(escala, escala, escala)) # Ajuste a escala conforme necessário (0.01 é um chute seguro para FBX)
+            model_matrix = glm.scale(model_matrix, glm.vec3(escala, escala, escala)) # Ajuste a escala conforme necessário
             
             self.model_shader.set_uniform_mat4("model", model_matrix)
             
